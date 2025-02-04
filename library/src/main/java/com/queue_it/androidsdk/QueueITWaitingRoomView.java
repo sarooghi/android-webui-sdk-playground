@@ -17,9 +17,7 @@ public class QueueITWaitingRoomView {
 
     public QueueITWaitingRoomView(Context activityContext,
                                   QueueListener queueListener) {
-        this(activityContext,
-                queueListener,
-                QueueItEngineOptions.getDefault());
+        this(activityContext, queueListener, QueueItEngineOptions.getDefault());
     }
 
     public QueueITWaitingRoomView(Context activityContext,
@@ -36,7 +34,11 @@ public class QueueITWaitingRoomView {
     }
 
     public void showQueue(final QueueTryPassResult queueTryPassResult, String webViewUserAgent) {
-        if(queueTryPassResult == null){
+        showQueue(queueTryPassResult, webViewUserAgent, null);
+    }
+
+    public void showQueue(final QueueTryPassResult queueTryPassResult, String webViewUserAgent, WebView webView) {
+        if (queueTryPassResult == null) {
             Log.e("QueueITWaitingRoomView", "queuePassedInfo parameter is empty");
             return;
         }
@@ -45,19 +47,17 @@ public class QueueITWaitingRoomView {
         Handler handler = new Handler();
         Runnable r = new Runnable() {
             public void run() {
-                showQueuePage(queueTryPassResult.getQueueUrl(), queueTryPassResult.getTargetUrl(), webViewUserAgent);
+                showQueuePage(queueTryPassResult.getQueueUrl(), queueTryPassResult.getTargetUrl(), webViewUserAgent, webView);
             }
         };
         handler.postDelayed(r, _delayInterval);
     }
 
-
     public void setViewDelay(int delayInterval) {
         _delayInterval = delayInterval;
     }
 
-
-    private void showQueuePage(String queueUrl, final String targetUrl, String webViewUserAgent) {
+    private void showQueuePage(String queueUrl, final String targetUrl, String webViewUserAgent, WebView webView) {
         _stateBroadcaster.registerReceivers(_queuePassedBroadcastReceiver,
                 _queueUrlChangedBroadcastReceiver,
                 _queueActivityClosedBroadcastReceiver,
@@ -72,6 +72,9 @@ public class QueueITWaitingRoomView {
         intent.putExtra("webViewUserAgent", webViewUserAgent);
         intent.putExtra("userId", getUserId());
         intent.putExtra("options", _options);
+        if (webView != null) {
+            QueueActivityBase.setExternalWebView(webView);
+        }
         _context.startActivity(intent);
     }
 
@@ -83,22 +86,9 @@ public class QueueITWaitingRoomView {
         _queueListener.onUserExited();
     }
 
-    private void raiseQueuePassed(String queueItToken) {
-        _queueListener.onQueuePassed(new QueuePassedInfo(queueItToken));
+    private String getUserId() {
+        return Settings.Secure.getString(_context.getContentResolver(), Settings.Secure.ANDROID_ID);
     }
-
-    private void raiseWebViewClosed() {
-        _queueListener.onWebViewClosed();
-    }
-
-    private void raiseOnSessionRestart() {
-        _queueListener.onSessionRestart(null);
-    }
-
-    private void raiseQueueUrlChanged(String url) {
-        _queueListener.onQueueUrlChanged(url);
-    }
-
 
     private final BroadcastReceiver _queuePassedBroadcastReceiver = new BroadcastReceiver() {
         @Override
@@ -152,9 +142,19 @@ public class QueueITWaitingRoomView {
         }
     };
 
-
-    private String getUserId() {
-        return Settings.Secure.getString(_context.getContentResolver(), Settings.Secure.ANDROID_ID);
+    private void raiseQueuePassed(String queueItToken) {
+        _queueListener.onQueuePassed(new QueuePassedInfo(queueItToken));
     }
 
+    private void raiseWebViewClosed() {
+        _queueListener.onWebViewClosed();
+    }
+
+    private void raiseOnSessionRestart() {
+        _queueListener.onSessionRestart(null);
+    }
+
+    private void raiseQueueUrlChanged(String url) {
+        _queueListener.onQueueUrlChanged(url);
+    }
 }

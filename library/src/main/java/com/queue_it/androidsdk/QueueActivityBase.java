@@ -30,6 +30,7 @@ public class QueueActivityBase {
     private IUriOverrider uriOverrider;
     private final IWaitingRoomStateBroadcaster broadcaster;
     private QueueItEngineOptions options;
+    private static WebView externalWebView;
 
     public QueueActivityBase(Activity context) {
         _context = context;
@@ -37,12 +38,15 @@ public class QueueActivityBase {
         broadcaster = new WaitingRoomStateBroadcaster(_context);
     }
 
-    public QueueItEngineOptions getOptions(){
+    public static void setExternalWebView(WebView webView) {
+        externalWebView = webView;
+    }
+
+    public QueueItEngineOptions getOptions() {
         return options;
     }
 
     WebViewClient webviewClient = new WebViewClient() {
-
         @Override
         public void onPageFinished(WebView view, String url) {
             super.onPageFinished(view, url);
@@ -80,9 +84,9 @@ public class QueueActivityBase {
             disposeWebview(webview);
         }
 
+        @Override
         public boolean shouldOverrideUrlLoading(WebView view, String urlString) {
             return uriOverrider.handleNavigationRequest(urlString, webview, new UriOverrideWrapper() {
-
                 @Override
                 protected void onQueueUrlChange(String uri) {
                     broadcaster.broadcastChangedQueueUrl(uri);
@@ -109,35 +113,38 @@ public class QueueActivityBase {
         }
     };
 
-    private static void cleanupWebView() {
-        if (previousWebView == null) return;
-        previousWebView.destroy();
-        previousWebView = null;
-    }
-
-    //was onCreated
     public void initialize(Bundle savedInstanceState) {
         uriOverrider = new UriOverrider();
-        _context.setContentView(R.layout.activity_queue);
         readActivityExtras(savedInstanceState);
         cleanupWebView();
-        final ProgressBar progressBar = _context.findViewById(R.id.progressBar);
+        final ProgressBar progressBar;
 
-        FrameLayout layout = _context.findViewById(R.id.relativeLayout);
-        webview = new WebView(_context);
-        layout.addView(webview);
+        if (externalWebView != null) {
+            webview = externalWebView;
+            externalWebView = null;
+            progressBar = null; // No progress bar in this mode
+        } else {
+            _context.setContentView(R.layout.activity_queue);
+            progressBar = _context.findViewById(R.id.progressBar);
+            FrameLayout layout = _context.findViewById(R.id.relativeLayout);
+            webview = new WebView(_context);
+            layout.addView(webview);
+        }
+
         previousWebView = webview;
         webview.getSettings().setJavaScriptEnabled(true);
         webview.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onProgressChanged(WebView view, int newProgress) {
-                Log.v("Progress", Integer.toString(newProgress));
-                if (newProgress < 100) {
-                    progressBar.setVisibility(View.VISIBLE);
-                } else {
-                    progressBar.setVisibility(View.GONE);
+                if (progressBar != null) {
+                    Log.v("Progress", Integer.toString(newProgress));
+                    if (newProgress < 100) {
+                        progressBar.setVisibility(View.VISIBLE);
+                    } else {
+                        progressBar.setVisibility(View.GONE);
+                    }
+                    progressBar.setProgress(newProgress);
                 }
-                progressBar.setProgress(newProgress);
                 super.onProgressChanged(view, newProgress);
             }
         });
@@ -172,7 +179,7 @@ public class QueueActivityBase {
                 targetUrl = extras.getString("targetUrl");
                 webViewUserAgent = extras.getString("webViewUserAgent");
                 uriOverrider.setUserId(extras.getString("userId"));
-                options = (QueueItEngineOptions)extras.getParcelable("options");
+                options = (QueueItEngineOptions) extras.getParcelable("options");
             }
         } else {
             queueUrl = (String) savedInstanceState.getSerializable("queueUrl");
@@ -182,7 +189,6 @@ public class QueueActivityBase {
         }
 
         uriOverrider.setTarget(Uri.parse(targetUrl));
-        uriOverrider.setQueue(Uri.parse(queueUrl));
     }
 
     private void disposeWebview(WebView webView) {
@@ -194,5 +200,11 @@ public class QueueActivityBase {
         userAgent = (userAgent != null) ? userAgent : UserAgentManager.getUserAgent();
         System.setProperty("http.agent", userAgent);
         webview.getSettings().setUserAgentString(userAgent);
+    }
+
+    private static void cleanupWebView() {
+        if (previousWebView == null) return;
+        previousWebView.destroy();
+        previousWebView = null;
     }
 }
